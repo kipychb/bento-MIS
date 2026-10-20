@@ -1,5 +1,6 @@
 """B2 inventory, expiry, stocktake and waste management (SQLite, standard library)."""
 import sqlite3
+import math
 from datetime import date, timedelta
 
 class InventoryError(ValueError):
@@ -41,7 +42,7 @@ class InventoryService:
     def close(self):
         self.db.close()
 
-    def receive_batch(self, item_type, item_id, batch_code, expiry_date, quantity, unit, unit_cost, operator):
+    def receive_batch(self, item_type, item_id, batch_code, expiry_date, quantity, unit, unit_cost, operator, input_unit=None, package_size=None, package_unit=None):
         if item_type not in ("ingredient", "bento") or not item_id or not batch_code or not unit or not operator:
             raise InventoryError("invalid batch fields")
         try:
@@ -49,8 +50,39 @@ class InventoryService:
             quantity, unit_cost = float(quantity), float(unit_cost)
         except (ValueError, TypeError):
             raise InventoryError("invalid date or number")
-        if quantity < 0 or unit_cost < 0:
-            raise InventoryError("quantity and cost must be nonnegative")
+        if not math.isfinite(quantity) or not math.isfinite(unit_cost) or quantity < 0 or unit_cost < 0:
+            raise InventoryError("quantity and cost must be finite and nonnegative")
+        unit = unit.strip()
+        if unit not in {"g", "kg", "mL", "L", "顆", "份", "包"}:
+            raise InventoryError("unsupported stock unit")
+        input_unit = (input_unit or unit).strip()
+        conversions = {("g", "kg"): .001, ("kg", "g"): 1000,
+                       ("mL", "L"): .001, ("L", "mL"): 1000}
+        if input_unit == "包" and unit != "包":
+            if package_size is None or not package_unit:
+                raise InventoryError("每包規格必填，例如 200 g")
+            try:
+                package_size = float(package_size)
+            except (TypeError, ValueError):
+                raise InventoryError("invalid package size")
+            if not math.isfinite(package_size) or package_size <= 0:
+                raise InventoryError("package size must be positive")
+            factor = conversions.get((package_unit, unit), 1 if package_unit == unit else None)
+            if factor is None:
+                raise InventoryError("每包規格與庫存單位不相容")
+            conversion = package_size * factor
+        else:
+            conversion = conversions.get((input_unit, unit), 1 if input_unit == unit else None)
+            if conversion is None:
+                raise InventoryError("輸入單位與庫存單位不相容")
+        # Price is per entered unit; store cost per normalized inventory unit.
+        quantity = round(quantity * conversion, 6)
+        unit_cost = round(unit_cost / conversion, 8)
+        previous = self.db.execute(
+            "SELECT DISTINCT unit FROM inventory_batches WHERE item_type=? AND item_id=?",
+            (item_type, item_id)).fetchall()
+        if any(row["unit"] != unit for row in previous):
+            raise InventoryError("此品項已有固定庫存單位，不能混用不同單位")
         with self.db:
             cur = self.db.execute(
                 "INSERT INTO inventory_batches(item_type,item_id,batch_code,expiry_date,quantity,unit,unit_cost) VALUES(?,?,?,?,?,?,?)",
