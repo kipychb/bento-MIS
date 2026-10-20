@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bento MIS｜A1 需求與採購</title><link rel="stylesheet" href="/style.css"></head>
+<body><header><div class="brand">BENTO <span>MIS</span></div><div>A1 ／ 需求預測與採購計畫</div></header><main>
+<section class="intro"><small>DAILY PLANNING</small><h1>先知道需求，再決定採購。</h1><p>依時段預測便當需求，換算原料用量與建議採購量。</p><span class="badge">獨立模組 · 預設為模擬資料</span></section>
+<section class="panel"><form id="form"><div class="fields"><label>計畫日期<input id="target" type="date" required></label><label>特殊日期需求倍率<input id="factor" type="number" min="0.01" max="3" step="0.01" value="1" required></label><label>原料緩衝比例（%）<input id="buffer" type="number" min="0" max="100" step="1" value="10" required></label></div><p class="hint">倍率只調整現場需求；已確認預訂另加。緩衝為可調整政策值，並非統計保證的安全庫存。</p><div class="actions"><button type="submit">計算需求與採購</button><button type="button" id="save" class="secondary" disabled>儲存計畫</button><button type="button" id="export" class="secondary" disabled>匯出結果 JSON</button></div></form><p id="status" role="status" aria-live="polite">正在載入示範資料…</p></section>
+<div id="metrics" class="metrics"></div><div id="warnings"></div>
+<section class="panel"><h2>便當需求預測</h2><p class="hint">最近 28 天優先採同星期資料，越近期權重越高。預訂不再乘活動倍率。</p><div class="scroll"><table><thead><tr><th>便當／時段</th><th>基礎預測</th><th>現場需求</th><th>確認預訂</th><th>建議製作</th><th>依據</th></tr></thead><tbody id="forecasts"></tbody></table></div></section>
+<section class="panel"><h2>原料採購建議</h2><p class="hint">採購量＝（需求＋緩衝－可用庫存－有效在途），最低為零，依包裝量向上取整。建議不會直接下單或修改庫存。</p><div class="scroll"><table><thead><tr><th>原料</th><th>需求</th><th>緩衝</th><th>可用庫存</th><th>到期排除</th><th>有效在途</th><th>建議採購</th><th>最晚下單日／提醒</th></tr></thead><tbody id="purchases"></tbody></table></div></section>
+<section class="panel"><h2>最近儲存的計畫</h2><div id="history"></div></section>
+<details class="panel"><summary>資料與串接設定</summary><p>目前未連接 B、C 組的正式資料庫。可在下方修改資料，或匯入符合格式的 JSON。實際與模擬資料請分開使用。</p><div class="actions"><button id="sample" class="secondary">重新載入模擬資料</button><label class="file">匯入資料 JSON<input id="import" type="file" accept="application/json,.json"></label><button id="download" class="secondary">下載輸入範例</button></div><label>完整輸入資料<textarea id="data" spellcheck="false" aria-label="完整輸入 JSON"></textarea></label></details>
+<footer>採購交期、容量與缺少樣本皆需人工確認。第一版以單日計畫為範圍，不自動安排多日庫存。</footer>
+</main><script src="/app.js"></script></body></html>
