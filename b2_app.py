@@ -79,7 +79,12 @@ class Handler(BaseHTTPRequestHandler):
             name, fields = paths[self.path]
             service = InventoryService(DB_PATH)
             try:
-                result = getattr(service, name)(**{k: data[k] for k in fields})
+                args = {k: data[k] for k in fields}
+                if name == "receive_batch":
+                    for extra in ("input_unit", "package_size", "package_unit"):
+                        if extra in data and data[extra] not in ("", None):
+                            args[extra] = data[extra]
+                result = getattr(service, name)(**args)
             finally:
                 service.close()
             return self.respond(201, {"result": result})
