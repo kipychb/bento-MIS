@@ -64,7 +64,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path not in files:
             return self.send(404,{'error':'找不到頁面'})
         name,mime=files[self.path]
-        self.send(200,(ROOT/'web'/name).read_bytes(),mime)
+        self.send(200,(ROOT.parent/'frontend'/name).read_bytes(),mime)
 
     def do_POST(self):
         if self.path not in ('/api/a1/calculate','/api/a1/plans'):
