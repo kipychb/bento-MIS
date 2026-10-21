@@ -1,0 +1,15 @@
+{
+  "sales": [
+    {"id":"POS-001","date":"2026-10-19","localTime":"12:10","status":"completed","items":[{"productId":"B001","productName":"雞腿便當","quantity":3,"unitPrice":70,"unitCost":39},{"productId":"B002","productName":"排骨便當","quantity":2,"unitPrice":65,"unitCost":36}]},
+    {"id":"POS-002","date":"2026-10-19","localTime":"18:40","status":"completed","items":[{"productId":"B001","productName":"雞腿便當","quantity":2,"unitPrice":70,"unitCost":39,"discount":10}]},
+    {"id":"POS-003","date":"2026-10-20","localTime":"12:30","status":"completed","items":[{"productId":"B002","productName":"排骨便當","quantity":4,"unitPrice":65,"unitCost":36}]},
+    {"id":"POS-004","date":"2026-10-20","localTime":"19:10","status":"cancelled","items":[{"productId":"B001","quantity":1,"unitPrice":70,"unitCost":39}]}
+  ],
+  "expenses": [
+    {"id":"EXP-001","date":"2026-10-19","category":"personnel","amount":300,"description":"兼職人員當日薪資"},
+    {"id":"EXP-002","date":"2026-10-20","category":"utilities","amount":120,"description":"示範用水電攤提"},
+    {"id":"EXP-003","date":"2026-10-19","category":"rent","amount":200,"description":"示範用租金攤提"},
+    {"id":"EXP-004","date":"2026-10-20","category":"other","amount":30,"description":"清潔用品"}
+  ],
+  "waste": [{"id":"W-001","date":"2026-10-20","type":"finished","amount":65,"description":"逾期成品報廢（示範值）"}]
+}
