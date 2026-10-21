@@ -1,0 +1,3 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {toA1Sales,adaptB2} from '../src/adapters.mjs';
+test('A1 counts physical sales and excludes preorders',()=>{const make=(id,source)=>({id,date:'2026-10-21',localTime:'12:10',source,status:'completed',items:[{productId:'chicken',quantity:2,unitPrice:70,unitCost:30}]});const result=toA1Sales({sales:[make('1','pos'),make('2','preorder')],expenses:[],waste:[]},'2026-10-21','2026-10-21');assert.deepEqual(result,[{date:'2026-10-21',product_id:'chicken',slot:'午餐',walk_in_qty:2}]);});
+test('B2 adapter reads server normalized records',()=>{assert.equal(adaptB2({records:[{id:'w1',date:'2026-10-21',amount:120}]} )[0].amount,120);});

@@ -1,0 +1,13 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {computeReport,normalizeExpense,normalizeSale,toForecastData,upsertEntry,removeEntry,periodLabel} from '../src/analytics.mjs';
+const dataset=JSON.parse(readFileSync(new URL('../samples/sample-data.json',import.meta.url)));
+test('全期間彙整含退單排除',()=>{const r=computeReport(dataset,'2026-10-19','2026-10-20');assert.equal(r.summary.orders,3);assert.equal(r.summary.units,11);assert.equal(r.summary.revenue,730);assert.equal(r.summary.ingredientCOGS,411);assert.equal(r.summary.grossProfit,319);assert.equal(r.summary.wasteLoss,65);assert.equal(r.summary.operatingExpenses,650);assert.equal(r.summary.netProfit,-396);});
+test('依日期過濾',()=>{const r=computeReport(dataset,'2026-10-20','2026-10-20');assert.equal(r.summary.orders,1);assert.equal(r.summary.revenue,260);});
+test('時段分析可供需求預測',()=>{const r=toForecastData(dataset,'2026-10-19','2026-10-20');assert.equal(r.timePeriods.find(x=>x.period==='午餐').soldQuantity,9);assert.equal(periodLabel('23:05'),'深夜');});
+test('單筆退款依品項拆分及減收入',()=>{const sale={id:'s',date:'2026-10-21',status:'completed',refundAmount:10,items:[{productId:'A',quantity:1,unitPrice:60,unitCost:20},{productId:'B',quantity:1,unitPrice:40,unitCost:10}]};const r=computeReport({sales:[sale]},'2026-10-21','2026-10-21');assert.equal(r.summary.revenue,90);assert.equal(r.products.reduce((a,x)=>a+x.revenue,0),90);});
+test('費用增修刪',()=>{const expense={id:'e1',date:'2026-10-21',category:'rent',amount:1000};const d=upsertEntry({},'expenses',expense);assert.equal(upsertEntry(d,'expenses',{...expense,amount:800}).expenses[0].amount,800);assert.equal(removeEntry(d,'expenses','e1').expenses.length,0);});
+test('阻止負數、無效日期、無效類別及超額折扣',()=>{assert.throws(()=>normalizeExpense({date:'2026-02-31',category:'rent',amount:1}));assert.throws(()=>normalizeExpense({date:'2026-10-21',category:'material',amount:10}));assert.throws(()=>normalizeExpense({date:'2026-10-21',category:'rent',amount:-1}));assert.throws(()=>normalizeSale({date:'2026-10-21',items:[{productId:'A',quantity:1,unitPrice:10,discount:11}]}));});
+test('起迄日期檢查及重複 ID',()=>{assert.throws(()=>computeReport(dataset,'2026-10-21','2026-10-20'));assert.throws(()=>computeReport({expenses:[dataset.expenses[0],dataset.expenses[0]]},'2026-10-19','2026-10-20'));});
+test('空資料無除零',()=>{const r=computeReport({},'2026-10-01','2026-10-31');assert.equal(r.summary.netMarginRate,0);assert.equal(r.summary.netProfit,0);});
