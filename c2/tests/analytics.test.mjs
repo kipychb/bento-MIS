@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {computeReport,normalizeExpense,normalizeSale,toForecastData,upsertEntry,removeEntry,periodLabel} from '../src/analytics.mjs';
-const dataset=JSON.parse(readFileSync(new URL('../samples/sample-data.json',import.meta.url)));
+const dataset=JSON.parse(readFileSync(new URL('../sample-data.json',import.meta.url)));
 test('全期間彙整含退單排除',()=>{const r=computeReport(dataset,'2026-10-19','2026-10-20');assert.equal(r.summary.orders,3);assert.equal(r.summary.units,11);assert.equal(r.summary.revenue,730);assert.equal(r.summary.ingredientCOGS,411);assert.equal(r.summary.grossProfit,319);assert.equal(r.summary.wasteLoss,65);assert.equal(r.summary.operatingExpenses,650);assert.equal(r.summary.netProfit,-396);});
 test('依日期過濾',()=>{const r=computeReport(dataset,'2026-10-20','2026-10-20');assert.equal(r.summary.orders,1);assert.equal(r.summary.revenue,260);});
 test('時段分析可供需求預測',()=>{const r=toForecastData(dataset,'2026-10-19','2026-10-20');assert.equal(r.timePeriods.find(x=>x.period==='午餐').soldQuantity,9);assert.equal(periodLabel('23:05'),'深夜');});
