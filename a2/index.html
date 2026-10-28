@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bento MIS｜供應商・採購・驗收</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Microsoft JhengHei",sans-serif;color:#34312d;background:#f5f2ec;font-size:14px}*{box-sizing:border-box}body{margin:0}
+.sidebar{width:220px;background:#302e2b;color:#e8e1d6;position:fixed;inset:0 auto 0 0;padding:30px 18px;display:flex;flex-direction:column}
+.brand{display:flex;gap:12px;align-items:center;font-size:17px;font-weight:750;letter-spacing:1px;padding:0 8px 38px}.logo{display:grid;place-items:center;width:38px;height:38px;background:#aa4435;color:#fffaf2;border-radius:4px;font-size:22px;font-family:"Yu Mincho","Noto Serif JP",serif}.brand small{display:block;font-size:11px;font-weight:400;color:#b9afa2;margin-top:5px}
+nav{display:grid;gap:7px}nav button{all:unset;cursor:pointer;color:#ded5c8;padding:13px 16px;border-radius:7px}nav button:hover,nav button.active{background:#514238;color:#fff}nav button.active{box-shadow:inset 3px 0 #d78b65}
+.workspace{margin-left:220px}header{height:66px;display:flex;align-items:center;justify-content:space-between;padding:0 36px;background:#fff;border-bottom:1px solid #e5dfd5;color:#776e63;font-size:12px}
+main{max-width:1400px;margin:auto;padding:30px 36px}h1{font-size:24px;margin:0 0 6px}h2{font-size:16px;margin:0 0 16px}.sub{color:#81786d;margin:0 0 22px;font-size:13px}
+.panel{background:#fff;border:1px solid #e5dfd5;border-radius:9px;padding:22px;margin-bottom:20px}.view{display:none}.view.active{display:block}
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;align-items:end}label{display:block;font-size:12px;font-weight:600;color:#60564a}
+input,select,textarea{display:block;width:100%;margin-top:6px;border:1px solid #d9cfc1;border-radius:5px;padding:9px 10px;font:inherit;background:#fff;color:#39342e}textarea{min-height:140px;font-family:monospace;font-size:12px}
+button.b{border:1px solid transparent;border-radius:5px;padding:9px 14px;background:#a63e30;color:#fff;font:inherit;font-size:12px;font-weight:600;cursor:pointer}button.s{background:#fff;border-color:#ddd3c5;color:#6b5c4b}button.b:hover{filter:brightness(.94)}
+.row{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-top:14px}.scroll{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+th{background:#f7f4ee;color:#85745f;font-size:11px;font-weight:500;text-align:left}td,th{padding:10px 12px;border-bottom:1px solid #ece5da;white-space:nowrap}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px}.metric{background:#fff;border:1px solid #e3dace;border-radius:9px;padding:16px 20px;font-size:12px;color:#7b6c5a}.metric b{display:block;font-size:28px;color:#3a3028;margin-top:8px}
+.tag{display:inline-block;padding:3px 8px;border-radius:4px;font-size:11px;background:#eee7dc;color:#75634d}.tag.ok{background:#e4efe2;color:#3d6b36}.tag.bad{background:#f8e1dc;color:#a63e30}.tag.warn{background:#fff3dc;color:#886c34}
+.warn{color:#886c34;font-size:12px}.bad{color:#a63e30}.muted{color:#92877a;font-size:12px}#msg{position:sticky;top:0;z-index:2;min-height:0}#msg div{padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:13px}#msg .ok{background:#e4efe2;color:#3d6b36}#msg .err{background:#f8e1dc;color:#a63e30}
+.best td{background:#fcf6ef}.checks{display:flex;gap:16px;flex-wrap:wrap}.checks label{display:flex;gap:6px;align-items:center}.checks input{width:auto;margin:0}
+@media(max-width:800px){.sidebar{position:static;width:100%;padding:14px}.brand{padding:0 0 10px}nav{display:flex;overflow:auto}nav button{white-space:nowrap;padding:8px 10px}.workspace{margin-left:0}main{padding:18px 14px}header{padding:0 16px}.metrics{grid-template-columns:1fr 1fr}}
+</style></head><body>
+<aside class="sidebar"><div class="brand"><span class="logo">弁</span><div>BENTO MIS<small>A2 供應商・採購・驗收</small></div></div>
+<nav id="nav"><button data-v="dock" class="active">到貨與驗收</button><button data-v="compare">比價與建單</button><button data-v="pos">採購單</button><button data-v="suppliers">供應商與報價</button><button data-v="reports">報表與匯出</button></nav></aside>
+<div class="workspace"><header><span>供應鏈管理 / A2</span><span id="seedState" class="tag">讀取中</span></header><main><div id="msg"></div>
+
+<section class="view active" id="dock"><h1>到貨排程與驗收入庫</h1><p class="sub">只列出已下單、尚未到貨的批次；允收數量會以一個新批次寫入 B2 庫存。</p>
+<div class="metrics" id="metrics"></div>
+<div class="panel"><h2>待到貨批次</h2><div class="scroll"><table><thead><tr><th>預定到貨</th><th>採購單</th><th>供應商</th><th>原料</th><th>應到</th><th>單價/包</th><th>備註</th><th></th></tr></thead><tbody id="scheduleRows"></tbody></table></div></div>
+<div class="panel" id="receivePanel" hidden><h2 id="receiveTitle">驗收</h2><form id="receiveForm"><div class="fields">
+<label>驗收日<input type="date" name="received_date" required></label><label>實收包數<input type="number" name="received_packs" min="0" step="1" required></label>
+<label>允收包數<input type="number" name="accepted_packs" min="0" step="1" required></label><label>有效日期<input type="date" name="expiry_date"></label>
+<label>實際每包單價（發票）<input type="number" name="price_per_pack" min="0" step="any"></label><label>供應商批號<input name="supplier_lot"></label>
+<label>拒收原因<input name="reject_reason" placeholder="如 溫度過高、破損"></label><label>短少補貨日（選填）<input type="date" name="backorder_date"></label><label>驗收人<input name="inspector" value="A2" required></label></div>
+<p class="muted" style="margin:16px 0 8px">檢查項目（全部通過才可允收）</p><div class="checks"><label><input type="checkbox" name="temperature">冷藏/冷凍溫度合格</label><label><input type="checkbox" name="package">包裝完整</label><label><input type="checkbox" name="appearance">外觀/氣味正常</label><label><input type="checkbox" name="label">標示與效期清楚</label></div>
+<div class="row"><button class="b">確認驗收並入庫</button><button type="button" class="b s" id="cancelReceive">取消</button></div></form></div>
+<div class="panel"><h2>最近驗收紀錄</h2><div class="scroll"><table><thead><tr><th>驗收日</th><th>採購單</th><th>原料</th><th>實收/允收/拒收</th><th>批號（B2）</th><th>效期</th><th>金額</th><th>驗收人</th></tr></thead><tbody id="receiptRows"></tbody></table></div></div></section>
+
+<section class="view" id="compare"><h1>批量比價與建立採購單</h1><p class="sub">貼上 A1 計算結果，或手動輸入需求量；系統依交期與總金額排序，不會自動下單。</p>
+<div class="panel"><h2>從 A1 採購建議匯入</h2><label>A1 匯出的計畫 JSON（含 purchases）<textarea id="a1json" placeholder='{"target":"2026-10-31","purchases":[{"ingredient_id":"chicken","purchase":15000,...}]}'></textarea></label><div class="row"><button class="b" id="importA1">分析 A1 建議</button><label class="b s" style="padding:9px 14px">選擇檔案<input type="file" id="a1file" accept=".json" hidden></label></div></div>
+<div class="panel"><h2>手動比價</h2><div class="fields"><label>原料<select id="cmpIng"></select></label><label>需求量（基本單位）<input type="number" id="cmpQty" min="0" step="any"></label><label>需要到貨日<input type="date" id="cmpNeed"></label><div><button class="b" id="cmpBtn">比價</button></div></div></div>
+<div id="cmpResults"></div></section>
+
+<section class="view" id="pos"><h1>採購單</h1><p class="sub">草稿 → 確認下單（計入在途）→ 部分到貨 → 全數到貨；可取消或提前結案。</p>
+<div class="row" style="margin:0 0 16px"><select id="poFilter" style="width:180px;margin:0"><option value="">全部狀態</option><option value="draft">草稿</option><option value="ordered">已下單</option><option value="partial">部分到貨</option><option value="received">已到貨</option><option value="closed">已結案</option><option value="cancelled">已取消</option></select></div><div id="poList"></div></section>
+
+<section class="view" id="suppliers"><h1>供應商與級距報價</h1><p class="sub">同一原料可有多家供應商、多種包裝與數量級距（買滿起訂包數，全部包數適用該價）。</p>
+<div class="panel"><h2>新增供應商</h2><form id="supForm"><div class="fields"><label>名稱<input name="name" required></label><label>交期（天）<input type="number" name="lead_days" min="0" step="1" required></label><label>最低訂購金額<input type="number" name="min_order_amount" min="0" value="0"></label><label>聯絡人<input name="contact"></label><label>電話<input name="phone"></label><div><button class="b">新增</button></div></div></form></div>
+<div class="panel"><h2>新增／更新報價級距</h2><form id="priceForm"><div class="fields"><label>供應商<select name="supplier_id" id="priceSup"></select></label><label>原料<select name="ingredient_id" id="priceIng"></select></label><label>每包含量（基本單位）<input type="number" name="pack_size" min="0" step="any" required></label><label>起訂包數<input type="number" name="min_packs" min="1" step="1" value="1" required></label><label>每包單價<input type="number" name="price_per_pack" min="0" step="any" required></label><div><button class="b">儲存</button></div></div></form></div>
+<div id="supList"></div>
+<div class="panel"><h2>原料主檔（A2 本地；正式由 B1 提供）</h2><form id="ingForm"><div class="fields"><label>id<input name="id" required></label><label>名稱<input name="name" required></label><label>基本單位<select name="unit"><option>g</option><option>kg</option><option>mL</option><option>L</option><option>顆</option><option>份</option><option>包</option></select></label><label>保存天數<input type="number" name="shelf_life_days" min="1" step="1" required></label><label>單日倉儲容量<input type="number" name="capacity" min="0" step="any" required></label><div><button class="b">儲存</button></div></div></form><div class="scroll" style="margin-top:14px"><table><thead><tr><th>id</th><th>名稱</th><th>單位</th><th>保存天數</th><th>容量</th></tr></thead><tbody id="ingRows"></tbody></table></div></div></section>
+
+<section class="view" id="reports"><h1>報表與跨組匯出</h1><p class="sub">進貨支出給 C2；在途給 A1；供應商評分用於下次比價與開發供應商。</p>
+<div class="panel"><div class="fields"><label>起日<input type="date" id="rStart"></label><label>迄日<input type="date" id="rEnd"></label><div><button class="b" id="rBtn">查詢</button></div></div></div>
+<div class="panel"><h2>供應商評分與進貨支出 <span id="spendTotal" class="tag"></span></h2><div class="scroll"><table><thead><tr><th>供應商</th><th>到貨次數</th><th>準時率</th><th>允收率</th><th>進貨金額</th><th>價差（實際−採購單）</th></tr></thead><tbody id="spendRows"></tbody></table></div></div>
+<div class="panel"><h2>下載 JSON</h2><div class="row"><button class="b s" data-dl="incoming">A1 在途 incoming</button><button class="b s" data-dl="a1-ingredients">A1 原料 ingredients</button><button class="b s" data-dl="spend">C2 進貨支出</button><button class="b s" data-dl="receipts">驗收紀錄</button></div></div></section>
+</main></div>
+<script>
+const $=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const n=v=>Number(v).toLocaleString('zh-TW',{maximumFractionDigits:3}),money=v=>'$'+Number(v).toLocaleString('zh-TW',{maximumFractionDigits:2});
+const today=()=>{const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10)};
+const STATUS={draft:['草稿',''],ordered:['已下單','warn'],partial:['部分到貨','warn'],received:['已到貨','ok'],closed:['已結案',''],cancelled:['已取消','bad']};
+let ING=[],SUP=[],current=null;
+async function api(path,body){const r=await fetch('/api/a2/'+path,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json();if(!r.ok)throw new Error(j.error);return j.result}
+function say(text,ok=true){$('msg').innerHTML=`<div class="${ok?'ok':'err'}">${esc(text)}</div>`;clearTimeout(say.t);say.t=setTimeout(()=>$('msg').innerHTML='',ok?4000:9000)}
+const run=fn=>async(...a)=>{try{await fn(...a)}catch(e){say(e.message,false)}};
+const form=f=>Object.fromEntries([...new FormData(f)].map(([k,v])=>[k,v]));
+const nums=(o,keys)=>{keys.forEach(k=>{if(o[k]!==''&&o[k]!==undefined)o[k]=Number(o[k]);else delete o[k]});return o};
+document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#nav button,.view').forEach(x=>x.classList.remove('active'));b.classList.add('active');$(b.dataset.v).classList.add('active');refresh()});
+
+async function refresh(){
+ [ING,SUP]=await Promise.all([api('ingredients'),api('suppliers')]);
+ $('seedState').textContent=SUP.some(s=>s.name.startsWith('（模擬）'))?'資料來源：含模擬資料':'資料來源：本機資料庫';
+ const opt=(rows,v,l)=>rows.map(r=>`<option value="${esc(r[v])}">${esc(l(r))}</option>`).join('');
+ $('cmpIng').innerHTML=$('priceIng').innerHTML=opt(ING,'id',i=>`${i.name}（${i.unit}）`);$('priceSup').innerHTML=opt(SUP.filter(s=>s.active),'id',s=>s.name);
+ $('ingRows').innerHTML=ING.map(i=>`<tr><td>${esc(i.id)}</td><td>${esc(i.name)}</td><td>${esc(i.unit)}</td><td>${i.shelf_life_days}</td><td>${n(i.capacity)}</td></tr>`).join('');
+ $('supList').innerHTML=SUP.map(s=>`<div class="panel"><div class="row" style="margin:0 0 10px;justify-content:space-between"><h2 style="margin:0">${esc(s.name)} ${s.active?'':'<span class="tag bad">停用</span>'}</h2><button class="b s" onclick="toggleSup(${s.id},${!s.active})">${s.active?'停用':'啟用'}</button></div>
+  <p class="muted">交期 ${s.lead_days} 天 · 最低訂購 ${money(s.min_order_amount)} · ${esc(s.contact)} ${esc(s.phone)}</p><div class="scroll"><table><thead><tr><th>原料</th><th>包裝</th><th>起訂包數</th><th>每包單價</th><th>基本單位成本</th><th></th></tr></thead><tbody>
+  ${s.prices.map(p=>`<tr><td>${esc(p.ingredient_name)}</td><td>${n(p.pack_size)} ${esc(p.unit)}</td><td>≥ ${p.min_packs}</td><td>${money(p.price_per_pack)}</td><td>${n(p.price_per_pack/p.pack_size)}/${esc(p.unit)}</td><td><button class="b s" onclick="delPrice(${p.id})">刪除</button></td></tr>`).join('')||'<tr><td colspan="6" class="muted">尚無報價</td></tr>'}</tbody></table></div></div>`).join('');
+ const [sched,recs,pos]=await Promise.all([api('schedule'),api('receipts'),api('pos'+($('poFilter').value?'?status='+$('poFilter').value:''))]);
+ const t=today();
+ $('metrics').innerHTML=[['今日應到',sched.filter(s=>s.scheduled_date===t).length],['逾期未到',sched.filter(s=>s.overdue).length],['待確認草稿',pos.filter(p=>p.status==='draft').length],['在途批次',sched.length]].map(([l,v])=>`<div class="metric">${l}<b>${v}</b></div>`).join('');
+ $('scheduleRows').innerHTML=sched.map(s=>`<tr><td>${s.scheduled_date} ${s.overdue?'<span class="tag bad">逾期</span>':s.scheduled_date===t?'<span class="tag warn">今日</span>':''}</td><td>${esc(s.po_no)}</td><td>${esc(s.supplier_name)}</td><td>${esc(s.ingredient_name)}</td><td>${s.packs} 包 × ${n(s.pack_size)}${esc(s.unit)}</td><td>${money(s.price_per_pack)}</td><td class="muted">${esc(s.note)}</td>
+  <td><button class="b" onclick='openReceive(${JSON.stringify(s)})'>驗收</button> <button class="b s" onclick="resched(${s.delivery_id})">改期</button></td></tr>`).join('')||'<tr><td colspan="8" class="muted">目前沒有待到貨批次</td></tr>';
+ $('receiptRows').innerHTML=recs.map(r=>`<tr><td>${r.received_date}</td><td>${esc(r.po_no)}</td><td>${esc(r.ingredient_name)}</td><td>${r.received_packs} / ${r.accepted_packs} / <span class="${r.rejected_packs?'bad':''}">${r.rejected_packs}</span> ${r.reject_reason?`<span class="muted">${esc(r.reject_reason)}</span>`:''}</td><td>${esc(r.batch_code||'—')} ${r.b2_batch_id?`<span class="tag ok">B2#${r.b2_batch_id}</span>`:''}</td><td>${r.expiry_date||'—'}</td><td>${money(r.amount)} ${r.price_per_pack!==r.po_price?`<span class="tag warn">價差</span>`:''}</td><td>${esc(r.inspector)}</td></tr>`).join('')||'<tr><td colspan="8" class="muted">尚無紀錄</td></tr>';
+ renderPOs(pos);await loadSpend();
+}
+function renderPOs(pos){$('poList').innerHTML=pos.map(p=>{const [label,cls]=STATUS[p.status];return `<div class="panel"><div class="row" style="margin:0 0 8px;justify-content:space-between"><h2 style="margin:0">${esc(p.po_no)} · ${esc(p.supplier_name)} <span class="tag ${cls}">${label}</span></h2><div class="row" style="margin:0">
+  ${p.status==='draft'?`<button class="b" onclick="poAct(${p.id},'confirm')">確認下單</button>`:''}${['draft','ordered','partial'].includes(p.status)?`<button class="b s" onclick="poCancel(${p.id},'${p.status}')">${p.status==='partial'?'結案（取消未到）':'取消'}</button>`:''}</div></div>
+  <p class="muted">下單日 ${p.order_date} · 金額 ${money(p.amount)} · 建立 ${esc(p.created_by)} · 來源 ${esc(p.source)} ${esc(p.note)} ${p.warnings.map(w=>`<span class="tag bad">${esc(w)}</span>`).join('')}</p>
+  <div class="scroll"><table><thead><tr><th>原料</th><th>訂購</th><th>單價/包</th><th>金額</th><th>分批到貨（日期：包數・狀態）</th></tr></thead><tbody>${p.lines.map(l=>`<tr><td>${esc(l.ingredient_name)}</td><td>${l.packs} 包（${n(l.qty)}${esc(l.unit)}）</td><td>${money(l.price_per_pack)}</td><td>${money(l.amount)}</td>
+  <td>${l.deliveries.map(d=>`${d.scheduled_date}：${d.packs} <span class="tag ${d.status==='received'?'ok':d.status==='cancelled'?'bad':''}">${d.status==='received'?`允收 ${d.accepted_packs}`:d.status==='cancelled'?'取消':'待到'}</span>`).join('<br>')}</td></tr>`).join('')}</tbody></table></div></div>`}).join('')||'<p class="muted">沒有採購單</p>'}
+window.toggleSup=run(async(id,a)=>{await api(`suppliers/${id}/active`,{active:a});refresh()});
+window.delPrice=run(async id=>{if(confirm('刪除此報價級距？')){await api(`prices/${id}/delete`,{});refresh()}});
+window.poAct=run(async(id,a)=>{await api(`pos/${id}/${a}`,{});say('已確認下單，到貨批次已計入 A1 在途');refresh()});
+window.poCancel=run(async(id,st)=>{const r=prompt(st==='partial'?'結案原因（未到批次將取消）':'取消原因');if(r){await api(`pos/${id}/cancel`,{reason:r});say('已更新');refresh()}});
+window.resched=run(async id=>{const d=prompt('新的到貨日（YYYY-MM-DD）');if(!d)return;const r=prompt('改期原因','供應商通知延後');if(r){await api(`deliveries/${id}/reschedule`,{date:d,reason:r});say('已改期，A1 在途同步更新');refresh()}});
+window.openReceive=s=>{current=s;const f=$('receiveForm');f.reset();f.received_date.value=today();f.received_packs.value=f.accepted_packs.value=s.packs;f.price_per_pack.value=s.price_per_pack;f.inspector.value='A2';
+ const ing=ING.find(i=>i.id===s.ingredient_id);if(ing){const d=new Date(today());d.setDate(d.getDate()+ing.shelf_life_days);f.expiry_date.value=d.toISOString().slice(0,10)}
+ $('receiveTitle').textContent=`驗收：${s.po_no} · ${s.ingredient_name} · 應到 ${s.packs} 包`;$('receivePanel').hidden=false;$('receivePanel').scrollIntoView({behavior:'smooth'})};
+$('cancelReceive').onclick=()=>$('receivePanel').hidden=true;
+$('receiveForm').onsubmit=run(async e=>{e.preventDefault();const f=e.target,b=nums(form(f),['received_packs','accepted_packs','price_per_pack']);
+ b.checks=Object.fromEntries(['temperature','package','appearance','label'].map(k=>[k,f[k].checked]));['temperature','package','appearance','label'].forEach(k=>delete b[k]);
+ Object.keys(b).forEach(k=>b[k]===''&&delete b[k]);const r=await api(`deliveries/${current.delivery_id}/receive`,b);
+ say(`驗收完成：允收 ${r.accepted_packs} 包${r.b2_batch_id?`，已入 B2 批次 ${r.batch_code}`:''}${r.rejected_packs?`，拒收 ${r.rejected_packs} 包`:''}${r.backorder_date?`，補貨 ${r.backorder_date}`:''}${r.price_variance?`，價差 ${money(r.price_variance)}`:''}`);$('receivePanel').hidden=true;refresh()});
+
+// ---- compare & create PO ----
+function offerTable(c,idx){return `<div class="panel"><h2>${esc(c.name)}：需要 ${n(c.qty)} ${esc(c.unit)}${c.need_by?` · ${c.need_by} 前到貨`:''}</h2>
+ ${(c.a1_warnings||[]).map(w=>`<p class="warn">A1：${esc(w)}</p>`).join('')}${c.latest_order_date?`<p class="muted">A1 最晚下單日 ${c.latest_order_date}</p>`:''}
+ <div class="scroll"><table><thead><tr><th>#</th><th>供應商</th><th>包裝 × 包數</th><th>每包</th><th>總金額</th><th>單位成本</th><th>預計到貨</th><th>下一級距</th><th>提醒</th><th></th></tr></thead><tbody>
+ ${c.offers.map((o,j)=>`<tr class="${j===0?'best':''}"><td>${o.rank}${j===0?' <span class="tag ok">建議</span>':''}</td><td>${esc(o.supplier_name)}</td><td>${n(o.pack_size)}${esc(c.unit)} × ${o.packs}</td><td>${money(o.price_per_pack)}</td><td><b>${money(o.total)}</b></td><td>${n(o.unit_cost)}</td><td>${o.arrival_date} ${o.on_time?'':'<span class="tag bad">來不及</span>'}</td>
+ <td>${o.next_tier?`買 ${o.next_tier.packs} 包 ${money(o.next_tier.total)}（單位 ${n(o.next_tier.unit_cost)}）<br><span class="muted">${esc(o.next_tier.note)}</span>`:'—'}</td><td class="warn">${o.warnings.map(esc).join('<br>')}</td>
+ <td><button class="b" onclick="draft(${idx},${j})">建草稿</button></td></tr>`).join('')||'<tr><td colspan="10" class="muted">沒有供應商報價，請先開發供應商</td></tr>'}</tbody></table></div></div>`}
+let CMP=[];
+function showCmp(list,warns=[]){CMP=list;$('cmpResults').innerHTML=warns.map(w=>`<p class="warn">${esc(w)}</p>`).join('')+list.map(offerTable).join('')||'<p class="muted">A1 沒有需要採購的原料</p>'}
+$('cmpBtn').onclick=run(async()=>{const qs=new URLSearchParams({ingredient_id:$('cmpIng').value,qty:$('cmpQty').value,order_date:today()});if($('cmpNeed').value)qs.set('need_by',$('cmpNeed').value);showCmp([await api('compare?'+qs)])});
+$('importA1').onclick=run(async()=>{let j;try{j=JSON.parse($('a1json').value)}catch{throw new Error('JSON 格式錯誤')}const r=await api('a1-suggestions',{result:j.result||j,order_date:today()});showCmp(r.items,r.warnings);say(`已分析 ${r.items.length} 項 A1 採購建議`)});
+$('a1file').onchange=async e=>{const f=e.target.files[0];if(f){$('a1json').value=await f.text();$('importA1').click()}};
+window.draft=run(async(i,j)=>{const c=CMP[i],o=c.offers[j],ing=ING.find(x=>x.id===c.ingredient_id);let deliveries;
+ if(ing.capacity&&o.qty>ing.capacity){const max=Math.max(1,Math.floor(ing.capacity/o.pack_size));if(!confirm(`超過單日倉儲容量 ${n(ing.capacity)}${ing.unit}，要自動分成每批最多 ${max} 包、每天到一批嗎？`))return;deliveries=await api('split',{packs:o.packs,first_date:o.arrival_date,max_packs:max,interval_days:1})}
+ else{const k=Number(prompt('分幾批到貨？（1 = 一次到齊；生鮮建議依用量分批）','1'));if(!k)return;if(k>1)deliveries=await api('split',{packs:o.packs,first_date:o.arrival_date,max_packs:Math.ceil(o.packs/k),interval_days:1})}
+ const po=await api('pos',{supplier_id:o.supplier_id,created_by:'A2',order_date:today(),source:c.latest_order_date?'A1':'manual',lines:[{ingredient_id:c.ingredient_id,packs:o.packs,pack_size:o.pack_size,deliveries}]});
+ say(`已建立草稿 ${po.po_no}，金額 ${money(po.amount)}${po.warnings.length?'（'+po.warnings.join('、')+'）':''}，請到「採購單」確認下單`);});
+
+// ---- suppliers / ingredients ----
+$('supForm').onsubmit=run(async e=>{e.preventDefault();await api('suppliers',nums(form(e.target),['lead_days','min_order_amount']));e.target.reset();say('已新增供應商');refresh()});
+$('priceForm').onsubmit=run(async e=>{e.preventDefault();await api('prices',nums(form(e.target),['supplier_id','pack_size','min_packs','price_per_pack']));say('已儲存報價');refresh()});
+$('ingForm').onsubmit=run(async e=>{e.preventDefault();await api('ingredients',nums(form(e.target),['shelf_life_days','capacity']));say('已儲存原料');refresh()});
+$('poFilter').onchange=run(refresh);
+
+// ---- reports ----
+async function loadSpend(){const qs=new URLSearchParams();if($('rStart').value)qs.set('start',$('rStart').value);if($('rEnd').value)qs.set('end',$('rEnd').value);const r=await api('spend?'+qs);
+ $('spendTotal').textContent='合計 '+money(r.total_amount);const pct=v=>v==null?'—':(v*100).toFixed(1)+'%';
+ $('spendRows').innerHTML=r.suppliers.map(s=>`<tr><td>${esc(s.supplier_name)}</td><td>${s.deliveries}</td><td>${pct(s.on_time_rate)}</td><td>${pct(s.acceptance_rate)}</td><td>${money(s.amount)}</td><td class="${s.price_variance>0?'bad':''}">${money(s.price_variance)}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">期間內沒有驗收紀錄</td></tr>'}
+$('rBtn').onclick=run(loadSpend);
+document.querySelectorAll('[data-dl]').forEach(b=>b.onclick=run(async()=>{const data=await api(b.dataset.dl);const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));a.download=`a2-${b.dataset.dl}-${today()}.json`;a.click()}));
+
+run(async()=>{if(!(await api('suppliers')).length&&confirm('資料庫是空的，要載入標示「（模擬）」的示範供應商與報價嗎？'))await api('seed',{});$('cmpNeed').value=today();await refresh()})();
+</script></body></html>
