@@ -3,18 +3,20 @@ def init_b1_tables(conn):
     conn.executescript("""
     CREATE TABLE IF NOT EXISTS Item (
         item_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        code TEXT NOT NULL UNIQUE,   -- 要跟 B2 的 item_id 一樣
+        code TEXT NOT NULL UNIQUE,   -- 全系統共用的品項代號，跟 B2 的 item_id 一樣
         name TEXT NOT NULL,
         type TEXT NOT NULL CHECK(type IN ('ingredient','bento')),
-        unit TEXT NOT NULL,          -- 固定庫存單位
-        shelf_life_hours INTEGER
+        unit TEXT NOT NULL,          -- 固定庫存單位(原料 g、便當 份)
+        shelf_life_hours INTEGER,
+        price REAL,                  -- 便當售價(C1 POS 使用)
+        made_to_order INTEGER NOT NULL DEFAULT 0  -- 1 = 先預訂後製作
     );
     CREATE TABLE IF NOT EXISTS Recipe (
         recipe_id INTEGER PRIMARY KEY AUTOINCREMENT,
         product_code TEXT NOT NULL,
         material_code TEXT NOT NULL,
         qty_per_unit REAL NOT NULL,  -- 每份便當的用量(單位同原料庫存單位)
-        loss_rate REAL NOT NULL DEFAULT 0,  -- 0.1 = 前處理損耗 10%
+        loss_rate REAL NOT NULL DEFAULT 0 CHECK(loss_rate>=0 AND loss_rate<1),  -- 0.1 = 前處理損耗 10%
         UNIQUE(product_code, material_code)
     );
     CREATE TABLE IF NOT EXISTS ProductionBatch (
@@ -25,7 +27,7 @@ def init_b1_tables(conn):
         actual_qty REAL NOT NULL,
         total_cost REAL NOT NULL,
         unit_cost REAL NOT NULL,
-        produced_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        produced_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
     );
     CREATE TABLE IF NOT EXISTS BatchMaterialUsage (
         usage_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -36,4 +38,10 @@ def init_b1_tables(conn):
         unit_cost REAL NOT NULL
     );
     """)
+    # 舊版資料庫沒有售價欄位時補上
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(Item)")}
+    if "price" not in columns:
+        conn.execute("ALTER TABLE Item ADD COLUMN price REAL")
+    if "made_to_order" not in columns:
+        conn.execute("ALTER TABLE Item ADD COLUMN made_to_order INTEGER NOT NULL DEFAULT 0")
     conn.commit()

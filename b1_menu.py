@@ -2,10 +2,12 @@
 from datetime import date, datetime, timedelta
 
 from b1_db import init_b1_tables
-from b1_production import add_item, add_recipe, produce
+from b1_production import add_item, add_recipe, produce, load_demo_stock
 from b1_report import init_standard_price, set_standard_price, variance_report, print_report
 from b1_export import print_c2_summary
 from b2_inventory import InventoryService
+from shared.config import INVENTORY_DB
+from shared.master import ensure_master
 
 
 def ask(msg):
@@ -17,30 +19,21 @@ def get_item(s, code):
 
 
 def load_demo(s):
-    add_item(s, "rice", "白飯", "ingredient", "kg")
-    add_item(s, "chicken", "雞腿肉", "ingredient", "kg")
-    add_item(s, "chicken_bento", "雞腿便當", "bento", "份", 6)
-    add_recipe(s, "chicken_bento", "rice", 0.3)
-    add_recipe(s, "chicken_bento", "chicken", 0.25, 0.1)
-    set_standard_price(s, "rice", 40)
-    set_standard_price(s, "chicken", 110)
-    d = date.today()
-    tag = d.strftime("%Y%m%d")
-    s.receive_batch("ingredient", "rice", f"RICE-{tag}", (d + timedelta(days=30)).isoformat(), 20, "kg", 40, "B1")
-    s.receive_batch("ingredient", "chicken", f"CHICKEN-{tag}-A", (d + timedelta(days=10)).isoformat(), 10, "kg", 120, "B1")
-    s.receive_batch("ingredient", "chicken", f"CHICKEN-{tag}-B", (d + timedelta(days=2)).isoformat(), 2, "kg", 100, "B1")
-    print("示範資料已載入。接著可選 5 生產,產品代碼輸入 chicken_bento。")
+    tag = datetime.now().strftime("%Y%m%d%H%M%S")
+    load_demo_stock(s, tag)
+    print("示範原料已進貨(以 g 為單位)。接著可選 5 生產,產品代碼輸入 chicken_bento。")
 
 
 def menu_add_item(s):
-    code = ask("品項代碼(英文,如 rice):")
+    code = ask("品項代碼(英文,如 rice、chicken_bento):")
     name = ask("品項名稱(如 白飯):")
     kind = ask("類型 1=原料 2=便當:")
-    unit = ask("固定庫存單位(如 kg、份):")
-    hours = None
+    unit = ask("固定庫存單位(原料用 g、便當用 份):")
+    hours = price = None
     if kind == "2":
         hours = int(ask("保存時數(如 6):"))
-    add_item(s, code, name, "bento" if kind == "2" else "ingredient", unit, hours)
+        price = float(ask("售價(元):"))
+    add_item(s, code, name, "bento" if kind == "2" else "ingredient", unit, hours, price)
     print("已新增品項。")
 
 
@@ -94,11 +87,17 @@ def menu_variance(s):
     print_report(variance_report(s, int(pid)))
 
 
+def menu_c2_summary(s):
+    start = ask("起始日期 YYYY-MM-DD(直接按 Enter = 不限):") or None
+    end = ask("結束日期 YYYY-MM-DD(直接按 Enter = 不限):") or None
+    print_c2_summary(s, start, end)
+
+
 def menu_stock(s):
     for b in s.batches():
         kind = "原料" if b["item_type"] == "ingredient" else "便當"
         print(f"{kind} {b['item_id']:<14}{b['batch_code']:<26}"
-              f"{b['quantity']:>9.3f} {b['unit']}  到期 {b['expiry_date']}  單價 {b['unit_cost']:.2f}")
+              f"{b['quantity']:>10.1f} {b['unit']}  到期 {b['expiry_date']}  單價 {b['unit_cost']:.4f}")
 
 
 MENU = """
@@ -111,11 +110,12 @@ MENU = """
 
 ACTIONS = {"1": menu_add_item, "2": menu_add_recipe, "3": menu_std_price,
            "4": menu_receive, "5": menu_produce, "6": menu_variance,
-           "7": print_c2_summary, "8": menu_stock, "9": load_demo}
+           "7": menu_c2_summary, "8": menu_stock, "9": load_demo}
 
 if __name__ == "__main__":
-    s = InventoryService("bento.db")
+    s = InventoryService(INVENTORY_DB)  # 與 B2、C1、A2、C2 共用同一個資料庫
     init_b1_tables(s.db)
+    ensure_master(s.db)
     init_standard_price(s)
     while True:
         print(MENU)

@@ -15,12 +15,22 @@ from b2_inventory import InventoryService  # noqa: E402
 from service import PurchasingService, PurchaseError, seed  # noqa: E402
 
 DB = Path(os.environ.get("A2_DB_PATH", ROOT / "data" / "a2.sqlite3"))
-B2_DB = os.environ.get("B2_DB_PATH", str(ROOT.parent / "b2_local.db"))  # same file b2_app.py and C2 use
+from shared.config import INVENTORY_DB  # noqa: E402
+B2_DB = INVENTORY_DB  # 與 B2、B1、C1、C2 共用同一個資料庫
 
 
 def open_service():
     DB.parent.mkdir(parents=True, exist_ok=True)
-    return PurchasingService(str(DB), InventoryService(B2_DB) if B2_DB else None)
+    s = PurchasingService(str(DB), InventoryService(B2_DB) if B2_DB else None)
+    sync_master(s)
+    return s
+
+
+def sync_master(s):
+    """原料主檔以共用主檔（B1）為準：代號、名稱、單位、保存天數、容量都跟 B1、B2 一致。"""
+    from shared.master import INGREDIENTS
+    for i in INGREDIENTS:
+        s.upsert_ingredient(i["code"], i["name"], i["unit"], i["shelf_life_days"], i["capacity"])
 
 
 def close_service(s):

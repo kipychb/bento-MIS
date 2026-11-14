@@ -6,11 +6,13 @@ import os
 import sys
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit,unquote
-from service import DB, connect, expenses, save_expense, delete_expense, adapt_b2_waste
+from urllib.parse import urlsplit,unquote,parse_qs
+from service import DB, connect, expenses, save_expense, delete_expense, adapt_b2_waste, sync_c1_sales
 ROOT=Path(__file__).resolve().parent
 TEAM=ROOT.parent
-B2_DB=Path(os.environ.get('B2_DB_PATH',str(TEAM/'b2_local.db')))
+sys.path.insert(0,str(TEAM))
+from shared.config import INVENTORY_DB
+B2_DB=Path(INVENTORY_DB)  # 與 A2、B1、B2、C1 共用同一個資料庫
 
 class Handler(BaseHTTPRequestHandler):
     def send_json(self,status,data):
@@ -29,12 +31,16 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 sys.path.insert(0,str(TEAM))
                 from b2_inventory import InventoryService
+                qs=parse_qs(url.query)
                 if not B2_DB.exists():return self.send_json(200,{'records':[],'warning':'B2 尚無資料庫，請先於 B2 系統建立報廢資料'})
                 svc=InventoryService(str(B2_DB))
-                try: data=svc.waste_report()
+                try: data=svc.waste_report(qs.get('start',[None])[0],qs.get('end',[None])[0])
                 finally:svc.close()
                 return self.send_json(200,{'records':adapt_b2_waste(data),'source':'b2-sqlite'})
             except Exception as exc:return self.send_json(503,{'error':'B2 同步失敗：'+str(exc)})
+        if path=='/api/c2/c1-sync':
+            try:return self.send_json(200,{'count':sync_c1_sales(B2_DB),'source':'c1-sqlite'})
+            except Exception as exc:return self.send_json(503,{'error':'C1 同步失敗：'+str(exc)})
         if path=='/api/c2/sales':
             with connect() as db:rows=db.execute('SELECT json FROM imported_sales ORDER BY id').fetchall()
             return self.send_json(200,[json.loads(r['json']) for r in rows])

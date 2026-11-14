@@ -2,7 +2,8 @@ import {validateDataset} from './analytics.mjs';
 /** Exact interface A1 sample().data.sales consumes; excludes preorders. */
 export function toA1Sales(dataset,start,end){
  const {sales}=validateDataset(dataset);const sums=new Map();
- const slotOf=t=>t<'11:00'?'早餐':t<'17:00'?'午餐':t<'21:00'?'晚餐':'宵夜';
+ // 與 shared/config.py 的 slot_of 相同：A1 只有午餐、晚餐、宵夜三個時段
+ const slotOf=t=>t<'17:00'?'午餐':t<'21:00'?'晚餐':'宵夜';
  for(const sale of sales){if(sale.status!=='completed'||sale.date<start||sale.date>end||sale.source==='preorder')continue;
   const slot=slotOf(sale.localTime);
   for(const i of sale.items){const key=JSON.stringify([sale.date,i.productId,slot]);sums.set(key,(sums.get(key)||0)+i.quantity);}}

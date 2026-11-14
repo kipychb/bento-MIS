@@ -99,7 +99,10 @@ def calculate(data, target, factor=1.0, buffer=0.1, as_of=None):
             same = [s for s in history if day(s['date']).weekday() == target.weekday()]
             chosen = same if same else history[-7:]
             method = '同星期加權平均' if same else '最近七筆加權平均'
-            if not chosen:
+            if product.get('made_to_order'):
+                # 先預訂後製作的品項（巨無霸便當）不預估現場需求，只做已確認的預訂量
+                chosen, method = [], '接單製作（只計預訂）'
+            elif not chosen:
                 warnings.append(f'{product["name"]}／{slot} 無歷史資料，僅計入預訂，請人工評估')
                 method = '無歷史資料'
             elif len(chosen) < 3:

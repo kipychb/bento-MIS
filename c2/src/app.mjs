@@ -7,6 +7,7 @@ const msg=(s,err=false)=>{$('message').textContent=s;$('message').style.color=er
 function save(){localStorage.setItem(KEY,JSON.stringify({...dataset,expenses:[]}));}
 async function api(path,options={}){const r=await fetch('/api/c2/'+path,{...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});const data=await r.json();if(!r.ok)throw new Error(data.error||'API 請求失敗');return data;}
 async function syncExpenses(){dataset.expenses=await api('expenses');save();render();}
+async function syncC1(){const r=await api('c1-sync');const s=await api('sales');dataset.sales=validateDataset({...dataset,sales:s}).sales;save();render();msg(`已同步 C1 銷售 ${r.count} 筆。`);}
 async function syncB2(){const payload=await api('b2-waste');dataset.waste=validateDataset({...dataset,waste:payload.records}).waste;save();render();msg(payload.warning||`已同步 B2 報廢 ${dataset.waste.length} 筆。`);}
 function download(name,data,type='application/json'){const blob=new Blob([data],{type});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function report(){return computeReport(dataset,$('start').value,$('end').value);}
@@ -32,4 +33,5 @@ $('saveRaw').onclick=async()=>{try{dataset=upsertEntry(dataset,$('rawKind').valu
 try{if(localStorage.getItem(KEY))dataset=validateDataset(JSON.parse(localStorage.getItem(KEY)));}catch(e){msg('本機資料錯誤，請匯入 JSON 或載入示範資料：'+e.message,true)}$('expenseForm').elements.date.value=$('end').value;render();
 
 $('syncB2').onclick=()=>syncB2().catch(e=>msg(e.message,true));
+$('syncC1').onclick=()=>syncC1().catch(e=>msg(e.message,true));
 Promise.all([api('expenses'),api('sales')]).then(([e,s])=>{dataset.expenses=e;if(s.length)dataset.sales=validateDataset({...dataset,sales:s}).sales;save();render();}).catch(err=>msg('連線失敗：'+err.message,true));

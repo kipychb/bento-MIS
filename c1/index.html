@@ -55,7 +55,8 @@
     <h2>📅 2. 顧客預訂系統（巨無霸便當防報廢）</h2>
     <input type="text" id="res-name" placeholder="顧客姓名（例：王同學）">
     <input type="text" id="res-phone" placeholder="聯絡電話（例：0912-345-678）">
-    <input type="time" id="res-time" required>
+    <label for="res-time" style="font-size:14px;">取餐日期與時間</label>
+    <input type="datetime-local" id="res-time" required>
     <div style="display: flex; gap: 10px;">
       <select id="res-item"></select>
       <input type="number" id="res-qty" value="1" min="1" style="width: 80px;">
@@ -109,7 +110,7 @@
     menu.forEach(item => {
       tbody.innerHTML += `
         <tr>
-          <td>${item.name} ${item.is_giant ? '🔥' : ''}</td>
+          <td>${item.name} ${item.is_giant ? '🔥<br><small>接單後製作，請先預訂</small>' : ''}</td>
           <td>$${item.price}</td>
           <td><strong>${item.stock}</strong> 份</td>
           <td><input type="number" min="0" max="${item.stock}" value="0" data-id="${item.id}" class="pos-qty" style="width:60px; margin:0;"></td>

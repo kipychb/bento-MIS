@@ -1,9 +1,7 @@
 """B1:標準成本 vs 實際成本差異報表。"""
 import os
-from datetime import date, timedelta
-
 from b1_db import init_b1_tables
-from b1_production import add_item, add_recipe, produce
+from b1_production import produce, load_demo_stock
 from b2_inventory import InventoryService
 
 
@@ -65,9 +63,9 @@ def variance_report(s, production_batch_id):
 
 def print_report(r):
     print(f"\n=== 批次 {r['batch']}(產出 {r['qty']:g} 份)===")
-    print(f"{'原料':<10}{'標準量':>8}{'實際量':>8}{'標準成本':>10}{'實際成本':>10}{'用量差異':>10}{'價格差異':>10}")
+    print(f"{'原料':<10}{'標準量(g)':>10}{'實際量(g)':>10}{'標準成本':>10}{'實際成本':>10}{'用量差異':>10}{'價格差異':>10}")
     for l in r["lines"]:
-        print(f"{l['material']:<10}{l['std_qty']:>8.3f}{l['act_qty']:>8.3f}"
+        print(f"{l['material']:<10}{l['std_qty']:>10.1f}{l['act_qty']:>10.1f}"
               f"{l['std_cost']:>10.2f}{l['act_cost']:>10.2f}"
               f"{l['qty_var']:>10.2f}{l['price_var']:>10.2f}")
     print(f"標準成本 {r['std_total']:.2f}(每份 {r['std_unit']:.2f})")
@@ -81,21 +79,7 @@ if __name__ == "__main__":
         os.remove("b1_report_demo.db")
     s = InventoryService("b1_report_demo.db")
     init_b1_tables(s.db)
-    init_standard_price(s)
-
-    add_item(s, "rice", "白飯", "ingredient", "kg")
-    add_item(s, "chicken", "雞腿肉", "ingredient", "kg")
-    add_item(s, "chicken_bento", "雞腿便當", "bento", "份", 6)
-    add_recipe(s, "chicken_bento", "rice", 0.3)
-    add_recipe(s, "chicken_bento", "chicken", 0.25, 0.1)
-
-    set_standard_price(s, "rice", 40)
-    set_standard_price(s, "chicken", 110)
-
-    d = date.today()
-    s.receive_batch("ingredient", "rice", "RICE-001", (d + timedelta(days=30)).isoformat(), 20, "kg", 40, "A2")
-    s.receive_batch("ingredient", "chicken", "CHICKEN-001", (d + timedelta(days=10)).isoformat(), 10, "kg", 120, "A2")
-    s.receive_batch("ingredient", "chicken", "CHICKEN-000", (d + timedelta(days=2)).isoformat(), 2, "kg", 100, "A2")
+    load_demo_stock(s)
 
     res = produce(s, "chicken_bento", 10, "BENTO-DEMO-001", planned_qty=11)
     print_report(variance_report(s, res["production_batch_id"]))
