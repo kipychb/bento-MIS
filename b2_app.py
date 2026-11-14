@@ -95,6 +95,6 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     host = "127.0.0.1"
-    port = int(os.environ.get("B2_PORT", "8000"))
+    port = int(os.environ.get("B2_PORT", "8001"))
     print(f"B2 管理系統啟動：http://{host}:{port}")
     ThreadingHTTPServer((host, port), Handler).serve_forever()
