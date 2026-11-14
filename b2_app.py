@@ -6,9 +6,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 from b2_inventory import InventoryService, InventoryError
+from shared.config import INVENTORY_DB
 
 ROOT = Path(__file__).resolve().parent
-DB_PATH = os.environ.get("B2_DB_PATH", str(ROOT / "b2_local.db"))
+DB_PATH = INVENTORY_DB  # 與 A2、B1、C1、C2 共用同一個資料庫
 HTML = (ROOT / "b2_inventory" / "index.html").read_bytes()
 
 class Handler(BaseHTTPRequestHandler):
@@ -44,7 +45,8 @@ class Handler(BaseHTTPRequestHandler):
                     for batch in result:
                         batch["status"] = "已過期" if batch["expiry_date"] < today else ("今日到期" if batch["expiry_date"] == today else "即將到期")
                 elif url.path == "/api/b2/waste":
-                    result = service.waste_report()
+                    qs = parse_qs(url.query)
+                    result = service.waste_report(qs.get("start", [None])[0], qs.get("end", [None])[0])
                 elif url.path == "/api/b2/movements":
                     result = [dict(r) for r in service.db.execute(
                         "SELECT m.*, b.batch_code, b.item_id FROM inventory_movements m JOIN inventory_batches b ON b.id=m.batch_id ORDER BY m.id DESC LIMIT 200")]
@@ -96,5 +98,5 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     host = "127.0.0.1"
     port = int(os.environ.get("B2_PORT", "8001"))
-    print(f"B2 管理系統啟動：http://{host}:{port}")
+    print(f"B2 管理系統啟動：http://{host}:{port}（資料庫 {DB_PATH}）")
     ThreadingHTTPServer((host, port), Handler).serve_forever()

@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+
+# 本機資料庫（每台電腦各自產生，不上傳）
+*.db
+*.sqlite3
+data/
+
+# Node
+node_modules/

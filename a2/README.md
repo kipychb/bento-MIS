@@ -13,7 +13,8 @@ python a2/server.py
 開啟 http://127.0.0.1:8003 （A1 用 8000、B2 用 8001、C2 用 8002）。第一次開啟時資料庫是空的，頁面會詢問是否載入名稱標示「（模擬）」的示範供應商與報價；原料 id 跟 A1 範例一致（rice、chicken、vegetable、tofu，單位 g）。
 
 - A2 資料：`a2/data/a2.sqlite3`（已加入 .gitignore），可用環境變數 `A2_DB_PATH` 改路徑
-- B2 庫存：預設寫入 repo 根目錄的 `b2_local.db`，也就是 `b2_app.py` 和 C2 讀取的同一個檔案；可用 `B2_DB_PATH` 改路徑
+- B2 庫存：寫入 repo 根目錄的共用資料庫 `bento.db`，也就是 B1、B2、C1、C2 使用的同一個檔案；可用 `BENTO_DB` 改路徑
+- 原料主檔：啟動時以共用主檔 [shared/master.py](../shared/master.py) 為準（代號、名稱、單位 g、保存天數、容量），跟 B1、B2 一致
 
 ## 為什麼這樣設計（Lean 採購）
 

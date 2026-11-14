@@ -1,11 +1,13 @@
 """Local A1 API and SQLite calculation snapshots; Python standard library only."""
 import argparse
+from contextlib import contextmanager
 from datetime import date, timedelta, datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
 import sqlite3
 from core import calculate
+import live
 
 ROOT = Path(__file__).resolve().parent
 DB = ROOT / 'data' / 'plans.sqlite3'
@@ -14,25 +16,31 @@ DB = ROOT / 'data' / 'plans.sqlite3'
 def sample():
     today = date.today()
     target = today + timedelta(days=3)
-    products = [dict(id='chicken', name='雞腿便當', recipe={'rice':100, 'chicken':200, 'vegetable':150}), dict(id='tofu', name='豆腐便當', recipe={'rice':100, 'tofu':180, 'vegetable':150})]
+    products = [dict(id='chicken_bento', name='雞腿便當', recipe={'rice':100, 'chicken':200, 'vegetable':150}), dict(id='tofu_bento', name='豆腐便當', recipe={'rice':100, 'tofu':180, 'vegetable':150})]
     ingredients = [dict(id=i, name=n, unit='g', pack_size=p, lead_days=2, capacity=200000) for i,n,p in [('rice','生米',5000),('chicken','雞腿肉',1000),('vegetable','蔬菜',1000),('tofu','豆腐',600)]]
     sales=[]
     for days in range(28,0,-1):
         d=today-timedelta(days=days)
-        for p,base in [('chicken',35),('tofu',20)]:
+        for p,base in [('chicken_bento',35),('tofu_bento',20)]:
             for slot,ratio in [('午餐',1),('晚餐',0.8),('宵夜',0.3)]:
                 sales.append(dict(date=d.isoformat(),product_id=p,slot=slot,walk_in_qty=int(base*ratio)+(d.weekday()%3)))
     return dict(target=target.isoformat(), factor=1, buffer=0.1, data=dict(products=products, ingredients=ingredients, slots=['午餐','晚餐','宵夜'], sales=sales,
-        preorders=[dict(date=target.isoformat(),product_id='chicken',slot='午餐',qty=10,status='confirmed')],
+        preorders=[dict(date=target.isoformat(),product_id='chicken_bento',slot='午餐',qty=10,status='confirmed')],
         stock=[dict(ingredient_id=i['id'],qty=5000,reserved_qty=500,expires_on=(target+timedelta(days=3)).isoformat()) for i in ingredients],
         incoming=[dict(ingredient_id='rice',qty=5000,arrival_date=target.isoformat(),expires_on=(target+timedelta(days=30)).isoformat(),status='confirmed')]))
 
 
+@contextmanager
 def connect():
+    """開啟、交易、關閉一次完成；Windows 上沒關閉的連線會讓資料庫檔案被鎖住。"""
     DB.parent.mkdir(parents=True,exist_ok=True)
     conn=sqlite3.connect(DB)
-    conn.execute('CREATE TABLE IF NOT EXISTS plans (id INTEGER PRIMARY KEY, created_at TEXT NOT NULL, target TEXT NOT NULL, input_json TEXT NOT NULL, result_json TEXT NOT NULL)')
-    return conn
+    try:
+        with conn:
+            conn.execute('CREATE TABLE IF NOT EXISTS plans (id INTEGER PRIMARY KEY, created_at TEXT NOT NULL, target TEXT NOT NULL, input_json TEXT NOT NULL, result_json TEXT NOT NULL)')
+            yield conn
+    finally:
+        conn.close()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -48,6 +56,11 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path=='/api/a1/sample':
             return self.send(200,sample())
+        if self.path=='/api/a1/live':
+            try:
+                return self.send(200,live.live_data())
+            except Exception as error:
+                return self.send(503,{'error':'讀取系統資料失敗：'+str(error)})
         if self.path=='/api/a1/plans':
             with connect() as conn:
                 rows=conn.execute('SELECT id,created_at,target FROM plans ORDER BY id DESC LIMIT 30').fetchall()

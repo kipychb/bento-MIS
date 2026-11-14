@@ -2,7 +2,7 @@ const $ = id => document.getElementById(id);
 let result = null, calculatedInput = null;
 let busy = false;
 function emptyState(){ $('plan-state').textContent='待計算'; $('metrics').innerHTML=['建議製作份數','已確認預訂','需採購原料品項'].map(label=>`<div class="metric">${label}<b>—</b></div>`).join(''); $('forecasts').innerHTML='<tr><td class="empty" colspan="6">設定計畫條件後，計算便當需求</td></tr>'; $('purchases').innerHTML='<tr><td class="empty" colspan="8">完成需求計算後，顯示原料採購建議</td></tr>'; }
-function lock(value){busy=value;document.querySelectorAll('#form input,#calculate,#sample,#import,#data,#history button').forEach(el=>el.disabled=value);}
+function lock(value){busy=value;document.querySelectorAll('#form input,#calculate,#sample,#live,#import,#data,#history button').forEach(el=>el.disabled=value);}
 const status = (text, error=false) => { $('status').textContent=text; $('status').className=error?'error':''; };
 const esc = value => String(value).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function api(path, body) {
@@ -31,15 +31,18 @@ async function history() {
   rows.forEach(row=>{const button=document.createElement('button');button.className='secondary';button.textContent='載入計畫';button.onclick=async()=>{if(busy)return;try {const saved=await api('plans/'+row.id);setInput(saved.input);render(saved.result);calculatedInput=JSON.stringify(saved.input);$('source').textContent='資料來源：歷史計畫（來源未驗證）';$('plan-state').textContent='歷史紀錄';$('save').disabled=true;status('已載入歷史計畫，重新計算後可另存新計畫。');} catch(e){status(e.message,true);}};const line=document.createElement('div');line.className='history-row';const label=document.createElement('span');label.textContent=`計畫 #${row.id}　${row.target}`;const time=document.createElement('small');time.textContent=new Date(row.created_at).toLocaleString('zh-TW');label.append(time);line.append(label,button);$('history').append(line);});
 }
 async function loadSample() {setInput(await api('sample'));$('source').textContent='資料來源：模擬資料';status('資料已就緒，請設定條件並計算。');}
+async function loadLive() {const body=await api('live');setInput(body);$('source').textContent='資料來源：系統資料（C1 銷售／預訂、B1 食譜、B2 庫存、A2 在途）';status(body.data.sales.length?'已載入系統資料，請設定條件並計算。':'系統尚無 C1 銷售紀錄，預測只會計入預訂。');return body;}
+async function loadStart() {try{const body=await api('live');if(body.data.sales.length){await loadLive();return;}}catch(e){}await loadSample();}
 $('form').onsubmit=async event=>{event.preventDefault();if(busy)return;lock(true);invalidate();try{const body=input();const fingerprint=JSON.stringify(body);status('計算中…');const r=await api('calculate',body);if(JSON.stringify(input())!==fingerprint){status('資料已變更，請重新計算。');return;}render(r);calculatedInput=fingerprint;status('計算完成。請確認交期與容量提醒後儲存。');}catch(e){status(e.message,true);}finally{lock(false);}};
 $('save').onclick=async()=>{if(busy)return;lock(true);try{const body=input();if(JSON.stringify(body)!==calculatedInput)throw new Error('資料已變更，請重新計算');$('save').disabled=true;const saved=await api('plans',body);render(saved.result);$('save').disabled=true;$('plan-state').textContent=`已儲存 #${saved.id}`;status(`已儲存計畫 #${saved.id}；尚未產生採購單。`);await history();}catch(e){status(e.message,true);$('save').disabled=false;}finally{lock(false);}};
 function download(data,name){const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 $('export').onclick=()=>download(result,'a1-plan-'+result.target+'.json');
 $('download').onclick=()=>{try{download(input(),'a1-input.json');}catch(e){status(e.message,true);}};
 $('sample').onclick=()=>loadSample().catch(e=>status(e.message,true));
+$('live').onclick=()=>loadLive().catch(e=>status(e.message,true));
 $('import').onchange=async event=>{try{const file=event.target.files[0];if(!file)return;if(file.size>2000000)throw new Error('檔案不可超過 2 MB');const body=JSON.parse(await file.text());if(!body.data||!body.target)throw new Error('請匯入含 target、data 的完整輸入物件');setInput(body);$('source').textContent='資料來源：匯入檔案（來源未驗證）';status('資料已匯入，請按計算驗證。');}catch(e){status(e.message,true);}finally{event.target.value='';}};
 ['target','factor','buffer','data'].forEach(id=>$(id).addEventListener('input',()=>{invalidate();status('資料已變更，請重新計算。');}));
-Promise.all([loadSample(),history()]).catch(e=>status(e.message,true));
+Promise.all([loadStart(),history()]).catch(e=>status(e.message,true));
 
 emptyState();
 function setNavigation(){document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active',a.hash===(location.hash||'#planning')));}

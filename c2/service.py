@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, date, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -23,7 +24,17 @@ def amount(value):
         return int(n*100)
     except (InvalidOperation,ValueError,TypeError): raise ValueError('金額必須為非負、最多兩位小數')
 
+@contextmanager
 def connect(path=DB):
+    """開啟、交易、關閉一次完成；Windows 上沒關閉的連線會讓資料庫檔案被鎖住。"""
+    conn=_open(path)
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
+
+def _open(path=DB):
     path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
     conn=sqlite3.connect(str(path),timeout=10)
     conn.row_factory=sqlite3.Row
@@ -64,6 +75,25 @@ def delete_expense(key,db=DB):
         cur=conn.execute('DELETE FROM expenses WHERE id=?',(key,))
     if cur.rowcount==0: raise LookupError('費用不存在')
 
+def sync_c1_sales(inventory_db,db=DB):
+    """從共用資料庫讀 C1 已完成銷售（含 B1 每份食材成本），寫入 C2。同一筆重複同步會覆蓋，不會重複計算。"""
+    if not Path(inventory_db).exists():return 0
+    src=sqlite3.connect(str(inventory_db),timeout=10);src.row_factory=sqlite3.Row
+    try:
+        if not src.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='c1_sales'").fetchone():return 0
+        sales=[]
+        for s in src.execute('SELECT * FROM c1_sales ORDER BY sold_at,id').fetchall():
+            items=[dict(productId=i['product_code'],productName=i['product_name'],quantity=i['qty'],unitPrice=i['unit_price'],unitCost=i['unit_cost'])
+                   for i in src.execute('SELECT * FROM c1_sale_items WHERE sale_id=? ORDER BY id',(s['id'],))]
+            sales.append(dict(id=s['id'],date=s['date'],localTime=s['local_time'],status='completed',source=s['source'],items=items))
+    finally:
+        src.close()
+    with connect(db) as conn:
+        for row in sales:
+            conn.execute('INSERT INTO imported_sales(id,json,updated_at) VALUES(?,?,datetime("now")) ON CONFLICT(id) DO UPDATE SET json=excluded.json,updated_at=excluded.updated_at',
+                         (row['id'],json.dumps(row,ensure_ascii=False)))
+    return len(sales)
+
 def adapt_b2_waste(payload):
     """B2 API: {total_loss,records:[{batch_id,quantity,loss,reason,operator,created_at}]}.
     Only sum records once; no use of total_loss to prevent double-counting."""
@@ -75,8 +105,13 @@ def adapt_b2_waste(payload):
         loss=amount(row.get('loss'))/100
         # B2 API lacks original waste record id. An identifier made from row attributes
         # is stable for repeat sync, but identical rows from different events may collide.
-        signature=json.dumps([row.get(k) for k in ('batch_id','quantity','loss','reason','operator','created_at')],ensure_ascii=False)
-        import hashlib
-        digest=hashlib.sha256(signature.encode()).hexdigest()[:20]
-        out.append(dict(id=f'b2-{digest}',date=d,type='b2-inventory',amount=loss,description=str(row.get('reason') or 'B2 報廢')))
+        if row.get('id') is not None:
+            key=f"b2-{row['id']}"  # B2 已提供報廢流水號
+        else:
+            signature=json.dumps([row.get(k) for k in ('batch_id','quantity','loss','reason','operator','created_at')],ensure_ascii=False)
+            import hashlib
+            key='b2-'+hashlib.sha256(signature.encode()).hexdigest()[:20]
+        label=str(row.get('reason') or 'B2 報廢')
+        if row.get('item_id'):label=f"{row['item_id']}：{label}"
+        out.append(dict(id=key,date=d,type='b2-inventory',amount=loss,description=label))
     return out

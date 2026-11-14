@@ -11,7 +11,7 @@
 python c2/server.py --port 8002
 ```
 
-開啟 `http://127.0.0.1:8002`。A1 仍使用 `python a1/server.py`（8000 埠）；B2 原本獨立服務可在 8001 埠執行。不同埠的頁面不會共用瀏覽器資料，因此 C2 透過本機 SQLite 讀取 B2 的 `b2_local.db`，不會直接呼叫不同來源的 API。
+開啟 `http://127.0.0.1:8002`。C2 直接讀取 repo 根目錄的共用資料庫 `bento.db`：按「同步 C1 銷售」取得 C1 已完成的銷售（每個品項附 B1 的每份食材成本），按「同步 B2 報廢」取得報廢損失，都可以依日期篩選。
 
 C2 費用儲存在 `c2/data/c2.sqlite3`，不會寫入 GitHub。銷售正式資料由 C1 提供，目前支援在 C2 頁面匯入符合格式的 JSON，並寫入 C2 SQLite；B1 單位食材成本寫在每筆銷售的 `items[].unitCost` 中；未串接時報表**僅是示範或部分資料估算，不能當作真實利潤**。
 
@@ -22,7 +22,8 @@ C2 費用儲存在 `c2/data/c2.sqlite3`，不會寫入 GitHub。銷售正式資�
 - `POST /api/c2/expenses`：新增費用 `{date,category,amount,description}`
 - `PUT /api/c2/expenses/{id}`：修改費用
 - `DELETE /api/c2/expenses/{id}`：刪除費用
-- `GET /api/c2/b2-waste`：從 B2 SQLite 讀取 `waste_report()` 並轉換格式
+- `GET /api/c2/c1-sync`：從共用資料庫同步 C1 銷售到 C2（重複同步不會重複計算）
+- `GET /api/c2/b2-waste?start=&end=`：從共用資料庫讀取 B2 `waste_report()` 並轉換格式
 - `GET /api/c2/sales`：讀取已匯入銷售資料
 - `POST /api/c2/sales`：以 `{sales:[...]}` 依 ID 新增或覆蓋銷售資料
 
